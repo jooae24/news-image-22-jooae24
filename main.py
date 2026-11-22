@@ -1,49 +1,37 @@
 #!/usr/bin/env python3
-"""Deliver the 22 November 2026 front-page poster to the grader.
+"""Ship the 22 November 2026 front page to the grader's output folder.
 
-The poster is rendered in advance by build_poster.py and shipped in
-this repository as assets/entry.png. This script only verifies that
-the bundled file is a real 1024x1024 PNG and copies it, byte for
-byte, to /output/entry.png. It uses only the standard library, makes
-no network calls, and always produces the same output bytes.
+The poster itself is rendered ahead of time by build_poster.py and
+stored in this repository at assets/entry.png. This entry point only
+reads those bytes back, confirms the PNG header says 1024x1024, and
+writes the identical bytes to /output/entry.png. Standard library
+only, no network, and the same bytes on every run.
 """
-import os
-import shutil
 import struct
 import sys
+from pathlib import Path
 
-EXPECTED_WIDTH = 1024
-EXPECTED_HEIGHT = 1024
-PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
-
-
-def bundled_poster_path():
-    folder = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(folder, "assets", "entry.png")
+SIZE = (1024, 1024)
+MAGIC = b"\x89PNG\r\n\x1a\n"
 
 
-def check_png(path):
-    """Confirm the file is a PNG of exactly the expected dimensions."""
-    with open(path, "rb") as handle:
-        header = handle.read(33)
-    if header[:8] != PNG_SIGNATURE:
-        raise ValueError("bundled poster is not a PNG file")
-    width, height = struct.unpack(">II", header[16:24])
-    if (width, height) != (EXPECTED_WIDTH, EXPECTED_HEIGHT):
-        raise ValueError(
-            "bundled poster is %dx%d, expected %dx%d"
-            % (width, height, EXPECTED_WIDTH, EXPECTED_HEIGHT)
-        )
+def entry_bytes():
+    here = Path(__file__).resolve().parent
+    blob = (here / "assets" / "entry.png").read_bytes()
+    if blob[:8] != MAGIC:
+        raise SystemExit("assets/entry.png is not a PNG file")
+    width, height = struct.unpack(">II", blob[16:24])
+    if (width, height) != SIZE:
+        raise SystemExit("poster is %dx%d, want 1024x1024" % (width, height))
+    return blob
 
 
 def main():
-    source = bundled_poster_path()
-    check_png(source)
-    destination_dir = "/output"
-    os.makedirs(destination_dir, exist_ok=True)
-    destination = os.path.join(destination_dir, "entry.png")
-    shutil.copyfile(source, destination)
-    print("wrote %s (%d bytes)" % (destination, os.path.getsize(destination)))
+    blob = entry_bytes()
+    dest = Path("/output/entry.png")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(blob)
+    print("wrote %s (%d bytes)" % (dest, len(blob)))
     return 0
 
 
